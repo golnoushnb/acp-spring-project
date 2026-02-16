@@ -68,4 +68,9 @@ public class DynamoService {
         String json = dataValue.s();
         return mapper.readValue(json, Object.class);
     }
+
+    public void writeObject(String table, String key, String content) {
+        PutItemRequest request = PutItemRequest.builder().tableName(table).item(Map.of(keyAttr, AttributeValue.builder().s(key).build(), dataAttr, AttributeValue.builder().s(content).build())).build();
+        dynamo.putItem(request);
+    }
 }

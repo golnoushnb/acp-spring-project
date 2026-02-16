@@ -20,6 +20,7 @@ public class AwsConfig {
     public S3Client s3Client(@Value("${ACP_S3:http://localhost:4566}") String s3Endpoint) {
         return S3Client.builder()
                 .endpointOverride(URI.create(s3Endpoint))
+                .forcePathStyle(true)
                 .region(Region.US_EAST_1)
                 .credentialsProvider(
                         StaticCredentialsProvider.create(AwsBasicCredentials.create("test", "test"))
