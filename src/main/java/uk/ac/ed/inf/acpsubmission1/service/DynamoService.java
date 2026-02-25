@@ -17,7 +17,6 @@ public class DynamoService {
     private final DynamoDbClient dynamo;
     private final ObjectMapper mapper = new ObjectMapper();
 
-    // Configurable attribute names (no hardcoding)
     @Value("${acp.dynamo.data:data}")
     private String dataAttr;
     private final Map<String, String> pkCache = new ConcurrentHashMap<>();
