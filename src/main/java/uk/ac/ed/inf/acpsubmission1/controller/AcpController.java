@@ -105,7 +105,7 @@ public class AcpController {
         }
     }
 
-    @GetMapping("/process/s3")
+    @PostMapping("/process/s3")
     public ResponseEntity<?> processS3(@RequestBody ProcessRequest request) {
         ObjectMapper mapper = new ObjectMapper();
         try {
@@ -121,7 +121,7 @@ public class AcpController {
             return ResponseEntity.status(404).build();
         }
     }
-    @GetMapping("/process/dynamo")
+    @PostMapping ("/process/dynamo")
     public ResponseEntity<?> processDynamo(@RequestBody ProcessRequest request) {
         ObjectMapper mapper = new ObjectMapper();
         try {
@@ -138,7 +138,7 @@ public class AcpController {
         }
     }
 
-    @GetMapping("/process/postgres/{table}")
+    @PostMapping ("/process/postgres/{table}")
     public ResponseEntity<?> processPostgres (@PathVariable String table, @RequestBody ProcessRequest request){
         try{
             List<Map<String, Object>> drones = processService.processDrones(request.getUrlPath());
