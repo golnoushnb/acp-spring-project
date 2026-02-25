@@ -9,6 +9,7 @@ import software.amazon.awssdk.services.dynamodb.model.*;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 public class DynamoService {
@@ -17,60 +18,79 @@ public class DynamoService {
     private final ObjectMapper mapper = new ObjectMapper();
 
     // Configurable attribute names (no hardcoding)
-    @Value("${acp.dynamo.key:id}")
-    private String keyAttr;
-
     @Value("${acp.dynamo.data:data}")
     private String dataAttr;
+    private final Map<String, String> pkCache = new ConcurrentHashMap<>();
 
     public DynamoService(DynamoDbClient dynamo) {
         this.dynamo = dynamo;
     }
+    private String getPartitionKeyAttr(String table) {
+        return pkCache.computeIfAbsent(table, t -> {
+            DescribeTableResponse resp = dynamo.describeTable(
+                    DescribeTableRequest.builder().tableName(t).build()
+            );
+
+            return resp.table().keySchema().stream()
+                    .filter(e -> e.keyType() == KeyType.HASH)
+                    .findFirst()
+                    .orElseThrow(() -> new IllegalStateException("No HASH key found for table: " + t))
+                    .attributeName();
+        });
+    }
 
     public List<Object> readAllObjectsVerbatim(String table) throws Exception {
+        ScanResponse response = dynamo.scan(
+                ScanRequest.builder().tableName(table).build()
+        );
 
-        ScanRequest request = ScanRequest.builder()
-                .tableName(table)
-                .build();
-        ScanResponse response = dynamo.scan(request);
         List<Object> result = new ArrayList<>();
 
         for (Map<String, AttributeValue> item : response.items()) {
             AttributeValue dataValue = item.get(dataAttr);
             if (dataValue != null && dataValue.s() != null) {
-                String json = dataValue.s();
-                Object parsed = mapper.readValue(json, Object.class);
+                Object parsed = mapper.readValue(dataValue.s(), Object.class);
                 result.add(parsed);
             }
         }
-
         return result;
     }
 
     public Object readSingleObjectVerbatim(String table, String key) throws Exception {
-        GetItemRequest request = GetItemRequest.builder()
-                .tableName(table)
-                .key(Map.of(
-                        keyAttr, AttributeValue.builder().s(key).build()
-                ))
-                .build();
-        GetItemResponse response = dynamo.getItem(request);
+        String pkAttr = getPartitionKeyAttr(table);
+
+        GetItemResponse response = dynamo.getItem(
+                GetItemRequest.builder()
+                        .tableName(table)
+                        .key(Map.of(pkAttr, AttributeValue.builder().s(key).build()))
+                        .build()
+        );
+
         Map<String, AttributeValue> item = response.item();
         if (item == null || item.isEmpty()) {
             throw new RuntimeException("Item not found");
         }
-        AttributeValue dataValue = item.get(dataAttr);
 
+        AttributeValue dataValue = item.get(dataAttr);
         if (dataValue == null || dataValue.s() == null) {
-            throw new RuntimeException("No data attribute");
+            throw new RuntimeException("No data attribute: " + dataAttr);
         }
 
-        String json = dataValue.s();
-        return mapper.readValue(json, Object.class);
+        return mapper.readValue(dataValue.s(), Object.class);
     }
 
+
     public void writeObject(String table, String key, String content) {
-        PutItemRequest request = PutItemRequest.builder().tableName(table).item(Map.of(keyAttr, AttributeValue.builder().s(key).build(), dataAttr, AttributeValue.builder().s(content).build())).build();
+        String pkAttr = getPartitionKeyAttr(table);
+
+        PutItemRequest request = PutItemRequest.builder()
+                .tableName(table)
+                .item(Map.of(
+                        pkAttr, AttributeValue.builder().s(key).build(),
+                        dataAttr, AttributeValue.builder().s(content).build()
+                ))
+                .build();
+
         dynamo.putItem(request);
     }
 }
