@@ -1,2 +1,3 @@
 /mvnw text eol=lf
 *.cmd text eol=crlf
+acp_submission_image.tar filter=lfs diff=lfs merge=lfs -text
